@@ -12,7 +12,7 @@ printGame = do
     let board = getBoard state
     let minesLeft = getMinesLeft state
     liftState $ printBoard board
-    liftState $ putStrLn $ "Mines left: " ++ show minesLeft
+    liftState $ putStrLn $ "Mines left: " ++ show minesLeft ++ "\n"
 
 printBoard :: Board -> IO ()
 printBoard b = do
