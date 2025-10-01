@@ -1,199 +1,26 @@
 {-# LANGUAGE LambdaCase #-}
 module Main where
 
-import System.Random
-
 import Control.Monad
-import Text.Read
+import Text.Read (readMaybe)
+
 import Operators
 
-data GameState = GameState {
-    getMinesLeft :: Int,
-    getBoard :: Board
-}
-
-type Board = [[Cell]]
-
-data Cell = Cell {
-    getCell :: CellType,
-    isRevealed :: Bool,
-    isFlagged :: Bool
-}
-
-data CellType = Safe { adjMines :: Int } | Mine
+import Print
+import Game
+import Board
+import State
 
 data Action = Reveal (Int, Int) | Flag (Int, Int)
 
-newGame :: Int -> Int -> Int -> IO GameState
-newGame rows cols mines = do
-    board <- placeMines rows cols mines
-    return $ GameState mines board
-
-printGame :: GameState -> IO ()
-printGame (GameState minesLeft board) = do
-    printBoard board
-    putStrLn $ "Mines left: " ++ show minesLeft
-
-mutateBoard :: GameState -> (Board -> Board) -> GameState
-mutateBoard (GameState _ board) f =
-    let b = f board
-    in GameState (countMines b - countFlags b) b
+mutateBoard :: (Board -> Board) -> GameStateM ()
+mutateBoard f = do
+    state <- get
+    let b = f $ getBoard state
+    put $ state { getBoard = b }
 
 emptyCell :: Cell
 emptyCell = Cell (Safe 0) False False
-
-boardHeight :: Board -> Int
-boardHeight = length
-
-boardWidth :: Board -> Int
-boardWidth = length <~ head
-
-boardSize :: Board -> (Int, Int)
-boardSize b = (boardHeight b, boardWidth b)
-
-inBounds :: (Int, Int) -> (Int, Int) -> Bool
-inBounds (h,w) (r0,c0) =
-    r0 >= 0 && r0 < h &&
-    c0 >= 0 && c0 < w
-
-placeMines :: Int -> Int -> Int -> IO Board
-placeMines rows cols mines = do
-    let total = rows * cols
-    positions <- (toCoords cols <<|) <<| randomPositions total mines
-    let isMine idx = idx `elem` positions
-
-    let board = [[ Cell (if isMine (r, c) then Mine else Safe 0) False False
-            | c <- [0..cols-1] ] | r <- [0..rows-1] ]
-
-    return $ fillAdj board
-
-toCoords :: Int -> Int -> (Int, Int)
-toCoords cols idx = (idx `div` cols, idx `mod` cols)
-
-fillAdj :: Board -> Board
-fillAdj b =
-        [ [ updateCell (r, c) cell
-        | (c, cell) <- zip [0..] row ]
-        | (r, row) <- zip [0..] b ]
-    where
-        updateCell :: (Int, Int) -> Cell -> Cell
-        updateCell pos (Cell (Safe _) _ _) =
-            Cell (Safe $ countAdjMines b pos) False False
-        updateCell _ cell = cell
-
-neighbours :: (Int, Int) -> (Int, Int) -> [(Int, Int)]
-neighbours (rows, cols) (r,c) =
-    [ (r', c')
-    | dr <- [-1..1]
-    , dc <- [-1..1]
-    , (dr,dc) /= (0,0)
-    , let r' = r + dr
-    , let c' = c + dc
-    , inBounds (rows, cols) (r', c')
-    ]
-
-countAdjMines :: Board -> (Int, Int) -> Int
-countAdjMines board pos = length
-    [ ()
-    | rc <- neighbours (boardSize board) pos
-    , isMine (board !! fst rc !! snd rc)
-    ]
-    where
-        isMine :: Cell -> Bool
-        isMine (Cell Mine _ _) = True
-        isMine _               = False
-
-countAdjFlags :: Board -> (Int, Int) -> Int
-countAdjFlags board pos = length
-    [ ()
-    | rc <- neighbours (boardSize board) pos
-    , flagged (board !! fst rc !! snd rc)
-    ]
-    where
-        flagged :: Cell -> Bool
-        flagged (Cell _ _ True) = True
-        flagged _               = False
-
-randomPositions :: Int -> Int -> IO [Int]
-randomPositions total k = do
-    shuffled <- shuffle [0..total-1]
-    return (take k shuffled)
-
-shuffle :: [a] -> IO [a]
-shuffle [] = return []
-shuffle xs = do
-    i <- randomRIO (0, length xs - 1)
-    let (left, right0) = splitAt i xs
-        (a, right) = case right0 of
-            (y:ys) -> (y, ys)
-            [] -> error "unreachable: index out of bounds"
-    rest <- shuffle (left ++ right)
-    return (a : rest)
-
-countMines :: Board -> Int
-countMines = sum <~ map (length <~ filter isMine)
-    where
-        isMine (Cell Mine _ _) = True
-        isMine _               = False
-
-countFlags :: Board -> Int
-countFlags = sum <~ map (length <~ filter flagged)
-    where
-        flagged (Cell _ _ True) = True
-        flagged _               = False
-
-printBoard :: Board -> IO ()
-printBoard b = do
-    let n = length $ head b
-    putChar '\n'
-    printColNumbers 1 n
-    putStr "   ┌─"
-    printHorizontalBar '┴' 1 n
-    putStrLn "┐"
-    mapM_ (uncurry printRow) $ zip b [1..]
-    putStr "   └─"
-    printHorizontalBar '┬' 1 n
-    putStrLn "┘\n"
-    where
-        padR :: Int -> String -> String
-        padR n str =
-            let padding = n - length str
-            in if padding < 0 then drop (-padding) str
-            else str ++ replicate padding ' '
-
-        padL :: Int -> String -> String
-        padL n str =
-            let padding = n - length str
-            in if padding < 0 then drop (-padding) str
-            else replicate padding ' ' ++ str
-
-        printHorizontalBar :: Char -> Int -> Int -> IO ()
-        printHorizontalBar c i n = case i of
-            _ | i > n -> return () | otherwise -> do
-                if i == 1 || i `mod` 5 == 0 then putChar c >> putChar '─'
-                else putStr "──"
-                printHorizontalBar c (i+1) n
-
-        printColNumbers :: Int -> Int -> IO ()
-        printColNumbers i n = do
-            case i of
-                _ | i == 1 -> putStr ("     " ++ padR 7 "1") >> printColNumbers (i+4) n
-                  | i > n -> putChar '\n'
-                  | otherwise -> putStr (" " ++ padR 9 (show i)) >> printColNumbers (i+5) n
-
-        printRow :: [Cell] -> Int -> IO ()
-        printRow r i = do
-            if i == 1 || i `mod` 5 == 0 then putStr $ padL 2 (show i) ++ " ┼ "
-            else putStr "   │ "
-            mapM_ (showCell ~> \c -> putChar c >> putChar ' ') r
-            if i == 1 || i `mod` 5 == 0 then putStrLn "┼" else putStrLn "│"
-
-showCell :: Cell -> Char
-showCell (Cell Mine True _) = '*'                   -- revealed mine
-showCell (Cell (Safe 0) True _) = ' '               -- revealed safe with 0 adjacent mines
-showCell (Cell (Safe n) True _) = head $ show n     -- revealed safe with n adjacent mines
-showCell (Cell _ _ True) = 'F'                      -- flagged
-showCell _ = '#'                                    -- unrevealed
 
 revealAll :: Board -> Board
 revealAll = map (map (\c -> c { isRevealed = True }))
@@ -292,61 +119,70 @@ getAction size = do
             putStrLn "Invalid input. You must enter exactly 2 numbers."
             getAction size
 
-gameLoop :: GameState -> IO (Maybe (GameState, Bool))
-gameLoop game = do
-    printBoard (getBoard game)
+gameLoop :: GameStateMT IO (Maybe Bool)
+gameLoop = do
+    printGame
 
-    result <- getAction (boardSize $ getBoard game)
+    state <- getT
+    let board = getBoard state
+
+    result <- liftState $ getAction (boardSize board)
+
     nest <- forM result $ \case
-        Reveal pos -> if isValidAction pos then do
-            let game' = mutateBoard game (revealPos pos)
-            postMutation game'
+        Reveal pos -> if isValidAction board pos then do
+            lift $ mutateBoard (revealPos pos)
+            postMutation
         else do
-            putStrLn "The cell is already revealed."
-            gameLoop game
-        Flag pos -> if isValidAction pos then do
-            let game' = mutateBoard game (flagPos pos)
-            postMutation game'
+            liftState $ putStrLn "The cell is already revealed."
+            gameLoop
+        Flag pos -> if isValidAction board pos then do
+            lift $ mutateBoard (flagPos pos)
+            postMutation
         else do
-            putStrLn "The cell cannot be flagged."
-            gameLoop game
+            liftState $ putStrLn "The cell cannot be flagged."
+            gameLoop
 
     return $ join nest
 
     where
-        isValidAction :: (Int, Int) -> Bool
-        isValidAction pos = not (isRevealed cell)
-            where cell = getBoard game !! fst pos !! snd pos
+        isValidAction :: Board -> (Int, Int) -> Bool
+        isValidAction board pos = not (isRevealed cell)
+            where cell = board !! fst pos !! snd pos
 
-        isWin :: GameState -> Bool
-        isWin = and <~ map (and <~ map safeRevealed) <~ getBoard
+        isWin :: GameStateM Bool
+        isWin = fmap (and <~ map (and <~ map safeRevealed) <~ getBoard) get
             where
                 safeRevealed :: Cell -> Bool
                 safeRevealed (Cell (Safe _) False _) = False
                 safeRevealed _ = True
 
-        isLose :: GameState -> Bool
-        isLose = or <~ map (or <~ map revealedMine) <~ getBoard
+        isLose :: GameStateM Bool
+        isLose = fmap (or <~ map (or <~ map revealedMine) <~ getBoard) get
             where
                 revealedMine :: Cell -> Bool
                 revealedMine (Cell Mine True _) = True
                 revealedMine _ = False
-        postMutation game' = do
-            let game'' = mutateBoard game' autoReveal
-            if isWin game'' then do
-                return $ Just (game'', True)
-            else if isLose game'' then do
-                return $ Just (game'', False)
+
+        postMutation :: GameStateMT IO (Maybe Bool)
+        postMutation = do
+            lift $ mutateBoard autoReveal
+            win <- lift isWin
+            lose <- lift isLose
+            if win then do
+                return $ Just True
+            else if lose then do
+                return $ Just False
             else do
-                gameLoop game''
+                gameLoop
 
 main :: IO ()
 main = do
     result <- getValidInput
+
     forElseOr result (putStrLn "Quitting..") $ \(rows, cols, mines) -> do
         game <- newGame rows cols mines
-        result' <- gameLoop game
-        forElseOr result' (putStrLn "Quitting..") $ \(state, end) -> do
+        (result', state) <- runStateT gameLoop game
+        forElseOr result' (putStrLn "Quitting..") $ \end -> do
             printBoard (revealAll $ getBoard state)
             if end then do
                 putStrLn $ "You won! (" ++ show mines ++ " mines cleared)"

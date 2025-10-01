@@ -6,6 +6,7 @@ module Operators (
     (<~|), (|~>), (|<~), (~>|),
     (<<|), (|>>), (|<<), (>>|),
     forOrElse, forElseOr,
+    (&), composeFlip, chainFlip
 ) where
 
 tapM :: Monad m => m a -> (a -> m b) -> m a
@@ -79,3 +80,13 @@ forOrElse (Just a) f _ = f a
 forElseOr :: Maybe a -> b -> (a -> b) -> b
 forElseOr Nothing b _ = b
 forElseOr (Just a) _ f = f a
+
+infixr 0 &
+(&) :: a -> (a -> b) -> b
+(&) = flip ($)
+
+composeFlip :: (a -> c -> d) -> (b -> c) -> a -> b -> d
+composeFlip g f = flip $ f ~> flip g
+
+chainFlip :: (b -> c) -> (a -> c -> d) -> a -> b -> d
+chainFlip f g = flip $ f ~> flip g
