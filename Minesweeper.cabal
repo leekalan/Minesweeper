@@ -64,11 +64,16 @@ executable Minesweeper
 
     -- Modules included in this executable, other than Main.
     other-modules:
-        Operators
         Print
         Game
         Board
-        State
+        Utils.Environment
+        Utils.Field
+        Utils.MaybeT
+        Utils.Reader
+        Utils.State
+        Utils.Transformer
+        Utils.While
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
