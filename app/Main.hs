@@ -3,14 +3,14 @@ module Main where
 
 import Control.Monad
 import Text.Read (readMaybe)
+import Data.Foldable
 
 import Print
 import Game
 import Board
-import Utils.State
-import Utils.Transformer
-import Utils.Environment
-import Data.Foldable
+import HaskellUtils.State
+import HaskellUtils.Transformer
+import HaskellUtils.Environment
 
 data Action = Reveal (Int, Int) | Flag (Int, Int)
 

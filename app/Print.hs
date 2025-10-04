@@ -2,8 +2,8 @@ module Print where
 
 import Game
 import Board
-import Utils.State
-import Utils.Transformer
+import HaskellUtils.State
+import HaskellUtils.Transformer
 
 printGame :: GameStateMT IO ()
 printGame = do

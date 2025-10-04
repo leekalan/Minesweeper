@@ -1,7 +1,7 @@
 module Game where
 
 import Board
-import Utils.State
+import HaskellUtils.State
 
 data GameState = GameState {
   getMinesLeft :: Int,

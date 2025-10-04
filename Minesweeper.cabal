@@ -67,13 +67,6 @@ executable Minesweeper
         Print
         Game
         Board
-        Utils.Environment
-        Utils.Field
-        Utils.MaybeT
-        Utils.Reader
-        Utils.State
-        Utils.Transformer
-        Utils.While
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
@@ -81,7 +74,8 @@ executable Minesweeper
     -- Other library packages from which modules are imported.
     build-depends:
         base ^>=4.18.3.0,
-        random ^>=1.3.1
+        random ^>=1.3.1,
+        HaskellUtils
 
     -- Directories containing source files.
     hs-source-dirs:   app

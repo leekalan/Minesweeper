@@ -1,7 +1,7 @@
 module Board where
 
 import System.Random
-import Utils.State
+import HaskellUtils.State
 
 type Board = [[Cell]]
 
